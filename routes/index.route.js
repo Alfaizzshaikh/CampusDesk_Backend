@@ -7,12 +7,17 @@ const upload = require('../middleware/multer.js');
 
 
 
+
+
+// STUDENT PROFILE DATA / DASHBOARD DATA 
+router.get('/student/profile' ,auth ,studentsController.getProfile)
+
 // POST API FOR INSERT USER DATA 
 
+
 console.log("register:", studentsController.register);
-console.log("auth:", auth);
+
 router.post("/student-data",
-    auth,
     upload.single("image"),
     studentsController.register)
 
@@ -39,7 +44,23 @@ router.patch('/editStudent/:id' , studentsController.editStudent);
 
 router.delete('/delete/:id' , studentsController.deletStudent);
 
+// POST API FOR CHECK LOGIN DATA 
 
+router.post('/login' , studentsController.UserLogin);
+
+
+//  API FOR GET  TEACHER DATA WITH ID 
+
+router.get('/teacher/:id' , studentsController.teacherById);
+
+
+// POST API FOR NOTICE
+
+router.post('/notice-student' , studentsController.notice)
+
+// TO GET ALL NOTICE
+
+router.get('/student-notice' , studentsController.getNotice)
 
 
 module.exports = router;

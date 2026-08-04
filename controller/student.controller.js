@@ -1,11 +1,15 @@
+const { compareSync } = require('bcrypt');
 const { ConnectDb } = require('../db/config.js');
+const bcrypt = require("bcrypt");
+
+
+const jwt = require('jsonwebtoken');
+const { connect } = require('../routes/index.route.js');
 
 
 
 
-const register = (req, res) => {
-    console.log(req.body);
-    console.log(req.file);
+const register = async (req, res) => {
     const image = req.file ? req.file.filename : null;
     const {
         first_name,
@@ -15,13 +19,22 @@ const register = (req, res) => {
         rollNumber,
         gender,
         address,
-        dateOfBirth
+        dateOfBirth,
+        role,
+        department,
+        subject,
+        Password
     } = req.body;
+    console.log(req.body);
+    console.log(req.body.Password);
+    console.log(typeof req.body.Password);
 
     const sql = ` INSERT INTO StudentDetails 
-    (first_name,last_name,phoneNumber,email,Course,rollNumber,gender,address,dateOfBirth,image)
-    VALUES (?,?,?,?,?,?,?,?,?,?)  
+    (first_name,last_name,phoneNumber,email,Course,rollNumber,gender,address,dateOfBirth,image,role,department,subject,password)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)  
     `;
+
+    const hashPass = await bcrypt.hash(Password, 10);
 
     ConnectDb.query(sql, [
         first_name,
@@ -33,7 +46,11 @@ const register = (req, res) => {
         gender,
         address,
         dateOfBirth,
-        image
+        image,
+        role,
+        department,
+        subject,
+        hashPass
     ], (err, result) => {
         console.log(result);
         if (err) {
@@ -54,41 +71,31 @@ const register = (req, res) => {
 // ALL STUDENT CONTROLLER
 
 const getAllStudent = (req, res) => {
-    const { search, course } = req.query;
-    let sql;
-    let value = [];
-    
+    const { search, course, role } = req.query;
+    let sql = "SELECT * FROM StudentDetails WHERE 1=1";
+    let values = [];
 
-    if (search && course) {
-        sql = `
-        SELECT * FROM StudentDetails
-        WHERE
-        (first_name LIKE ? OR last_name LIKE ?)
-        AND Course = ?
-    `;
-
-        value = [
-            `%${search}%`,
-            `%${search}%`,
-            course
-        ];
-    }
-    else if (search) {
-        sql = `SELECT * FROM StudentDetails WHERE (first_name LIKE ? OR last_name LIKE ?)`;
-        value = [
-            `%${search}%`,
-            `%${search}%`
-        ]
-    } else if (course) {
-        sql = `SELECT * FROM StudentDetails WHERE Course = ?`
-        value = [course];
+    if (role) {
+        sql += " AND role = ?";
+        values.push(role);
     }
 
-    else {
-        sql = `SELECT *FROM StudentDetails `
+    if (search) {
+        sql += " AND (first_name LIKE ? OR last_name LIKE ?)";
+        values.push(`%${search}%`, `%${search}%`);
     }
 
-    ConnectDb.query(sql, value, (error, result) => {
+    if (course) {
+        sql += " AND Course = ?";
+        values.push(course);
+    }
+
+    console.log(sql);
+    console.log(values);
+
+
+
+    ConnectDb.query(sql, values, (error, result) => {
         if (error) {
             return res.status(500).send({
                 success: false,
@@ -237,10 +244,198 @@ const deletStudent = (req, res) => {
                 });
             }
 
-           return res.send({
+            return res.send({
                 success: true,
                 result,
                 message: "Delete Successfully"
+            })
+        })
+    } catch (error) {
+        console.log("hitted")
+        console.log(error);
+    }
+}
+
+
+// LOGIN USER LOGIC
+
+const UserLogin = (req, res) => {
+
+    const { email, password } = req.body;
+    console.log(req.body);
+
+
+    const sql = `SELECT * FROM StudentDetails WHERE email = ?`
+
+    ConnectDb.query(sql, [email], async (err, result) => {
+        try {
+            if (err) {
+                console.log(err);
+                return res.status(500).send({
+                    success: false,
+                    message: "Internal Server Erorr"
+                })
+
+            }
+
+            if (result.length === 0) {
+                return res.status(404).send({
+                    success: false,
+                    message: "Email not found"
+                })
+            }
+
+
+            console.log(result);
+
+            const user = result[0];
+            const isMatch = await bcrypt.compare(password, user.password);
+
+            if (!isMatch) {
+                return res.status(401).send({
+                    message: "Invalid Password",
+                    success: false
+                })
+            }
+
+            const token = jwt.sign(
+                {
+                    id: user.id,
+                    role: user.role
+                },
+                process.env.JWT_SECRET,
+                {
+                    expiresIn: '7d'
+                }
+            )
+
+
+
+            res.send({
+                success: true,
+                massage: "Login Succesfully",
+                token,
+                user: {
+                    id: user.id,
+                    email: user.email,
+                    first_name: user.first_name,
+                    role: user.role
+                }
+            })
+
+        } catch (error) {
+            console.log(error);
+            return res.status(500).send({
+                success: false,
+                message: "Internal Server Error"
+            });
+        }
+    })
+
+}
+
+
+// STUDENT PROFILE ROUTE 
+
+const getProfile = (req , res)=>{
+    const studentID = req.user.id;
+    console.log(studentID);
+
+    const sql = `SELECT * FROM StudentDetails WHERE id = ?`
+
+    ConnectDb.query(sql , [studentID] , (err, result)=>{
+        if(err){
+           return res.status(500).send({
+                success:false,
+                message:"Internal Server Error"
+            })
+            
+        }
+      return  res.send({
+            success:true,
+           data: result[0]
+        })
+    })
+}
+
+
+// teacher with id 
+
+const teacherById = (req, res)=>{
+    try {
+        const id = req.params.id;
+        const sql = `SELECt* FROM StudentDetails WHERE id = ?`
+
+        ConnectDb.query(sql , [id], (err , result)=>{
+            if(err){
+                res.status(501).send({
+                success:false,
+                message:"Internal Server Error"
+               });
+
+
+            }
+            return res.send({
+             success:true,
+             data:result[0],
+             message:"Fetched"
+            })
+        })
+    } catch (error) {
+        console.log(error);
+    }
+}
+
+
+// NOTICE POST ROUTE 
+
+const notice = (req,res)=>{
+    try {
+        const {noticeTitle , noticeDiscription} = req.body;
+        console.log(req.body);
+        const sql = `INSERT INTO notice (title , description)
+        VALUE (?,?)
+        `;
+
+        ConnectDb.query(sql , [
+            noticeTitle,
+            noticeDiscription
+        ],(err,result)=>{
+            if(err){
+             return   res.status(500).send({
+                    success:false,
+                    message:"Enternal Server Error"
+                })
+            }
+
+            return res.status(200).send({
+                success:true,
+                message:"Notice Add Done !"
+            })
+
+        })
+    } catch (error) {
+        
+    }
+}
+
+// GET NOTICE ON STUDENT DASHBOARD
+
+const getNotice = (req,res)=>{
+    try {
+        const sql = `SELECT * FROM notice`
+        ConnectDb.query(sql , (error,result)=>{
+            if(error){
+                return res.status(500).send({
+                    message:"Internal Server Error",
+                    success:false
+                })
+            }
+
+            return res.status(200).send({
+                success:false,
+                data:result,
+                message:"Data get Success"
             })
         })
     } catch (error) {
@@ -255,3 +450,8 @@ exports.getAllStudent = getAllStudent;
 exports.studentById = studentById;
 exports.editStudent = editStudent;
 exports.deletStudent = deletStudent;
+exports.UserLogin = UserLogin;
+exports.getProfile = getProfile;
+exports.teacherById = teacherById;
+exports.notice = notice;
+exports.getNotice = getNotice;

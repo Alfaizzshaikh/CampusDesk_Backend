@@ -5,8 +5,9 @@ const cors = require('cors');
 const routerController = require('./routes/index.route.js');
 require('./db/config.js');
 require('./models/createStudentTable.js');
+require('./models/createNoticeTable.js');
 const path = require("path");
-
+require("dotenv").config();
 
 
 
