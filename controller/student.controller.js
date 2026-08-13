@@ -2,41 +2,19 @@ const { compareSync } = require('bcrypt');
 const { ConnectDb } = require('../db/config.js');
 const bcrypt = require("bcrypt");
 
-
+const cloudinary = require('../config/cloudinary.js')
 const jwt = require('jsonwebtoken');
 const { connect } = require('../routes/index.route.js');
+
+const streamifier = require("streamifier");
 
 
 
 
 const register = async (req, res) => {
-    const image = req.file ? req.file.filename : null;
+    console.log(req.file, "abcd");
+
     const {
-        first_name,
-        last_name, phoneNumber,
-        email,
-        Course,
-        rollNumber,
-        gender,
-        address,
-        dateOfBirth,
-        role,
-        department,
-        subject,
-        Password
-    } = req.body;
-    console.log(req.body);
-    console.log(req.body.Password);
-    console.log(typeof req.body.Password);
-
-    const sql = ` INSERT INTO StudentDetails 
-    (first_name,last_name,phoneNumber,email,Course,rollNumber,gender,address,dateOfBirth,image,role,department,subject,password)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)  
-    `;
-
-    const hashPass = await bcrypt.hash(Password, 10);
-
-    ConnectDb.query(sql, [
         first_name,
         last_name,
         phoneNumber,
@@ -46,27 +24,115 @@ const register = async (req, res) => {
         gender,
         address,
         dateOfBirth,
-        image,
         role,
         department,
         subject,
-        hashPass
-    ], (err, result) => {
-        console.log(result);
-        if (err) {
-            console.log(err);
-            throw err
-        };
+        Password,
+        qualification
+    } = req.body;
 
-        res.send({
-            success: true,
-            message: "Student ADDED"
-        })
+    if (!req.file) {
+        return res.status(400).json({
+            success: false,
+            message: "Image is required"
+        });
+    }
 
-    })
+    try {
+        const hashPass = await bcrypt.hash(Password, 10);
 
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                folder: "Profile Pictures",
+                resource_type: "image"
+            },
+            (error, result) => {
+                if (error) {
+                    console.log(error);
 
-}
+                    return res.status(500).json({
+                        success: false,
+                        message: "Image upload failed"
+                    });
+                }
+
+                const imageUrl = result.secure_url;
+
+                console.log("Image URL:", imageUrl);
+
+                const sql = `
+                    INSERT INTO StudentDetails
+                    (
+                        first_name,
+                        last_name,
+                        phoneNumber,
+                        email,
+                        Course,
+                        rollNumber,
+                        gender,
+                        address,
+                        dateOfBirth,
+                        image,
+                        role,
+                        department,
+                        subject,
+                        password,
+                        qualification
+                    )
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                `;
+
+                ConnectDb.query(
+                    sql,
+                    [
+                        first_name,
+                        last_name,
+                        phoneNumber,
+                        email,
+                        Course,
+                        rollNumber,
+                        gender,
+                        address,
+                        dateOfBirth,
+                        result.secure_url,
+                        role,
+                        department,
+                        subject,
+                        hashPass,
+                        qualification
+                    ],
+                    (err, result) => {
+                        if (err) {
+                            console.log(err);
+
+                            return res.status(500).json({
+                                success: false,
+                                message: "Database error"
+                            });
+                        }
+
+                        return res.status(200).json({
+                            success: true,
+                            message: "USER ADDED"
+                        });
+                    }
+                );
+            }
+        );
+
+        streamifier
+            .createReadStream(req.file.buffer)
+            .pipe(uploadStream);
+
+    } catch (error) {
+        console.log(error);
+
+        return res.status(500).json({
+            success: false,
+            message: "Internal Server Error"
+        });
+    }
+};
 
 // ALL STUDENT CONTROLLER
 
@@ -74,6 +140,9 @@ const getAllStudent = (req, res) => {
     const { search, course, role } = req.query;
     let sql = "SELECT * FROM StudentDetails WHERE 1=1";
     let values = [];
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 3;
+    const skip = (page - 1) * limit;
 
     if (role) {
         sql += " AND role = ?";
@@ -89,6 +158,10 @@ const getAllStudent = (req, res) => {
         sql += " AND Course = ?";
         values.push(course);
     }
+
+    sql += " LIMIT ? OFFSET ?"
+    values.push(limit, skip);
+
 
     console.log(sql);
     console.log(values);
@@ -106,7 +179,9 @@ const getAllStudent = (req, res) => {
 
         res.send({
             success: true,
-            data: result
+            data: result,
+            page,
+            limit
         })
     })
 
@@ -120,7 +195,26 @@ const getAllStudent = (req, res) => {
 const studentById = (req, res) => {
     try {
         const id = req.params.id;
-        const qry = 'SELECT * FROM StudentDetails WHERE id = ?'
+        const qry = `
+            SELECT 
+                id,
+                first_name,
+                last_name,
+                phoneNumber,
+                email,
+                Course,
+                rollNumber,
+                gender,
+                address,
+                dateOfBirth,
+                image,
+                role,
+                department,
+                subject,
+                qualification
+            FROM StudentDetails
+            WHERE id = ?
+        `;
 
         ConnectDb.query(qry, [id], (error, result) => {
 
@@ -337,23 +431,23 @@ const UserLogin = (req, res) => {
 
 // STUDENT PROFILE ROUTE 
 
-const getProfile = (req , res)=>{
+const getProfile = (req, res) => {
     const studentID = req.user.id;
     console.log(studentID);
 
     const sql = `SELECT * FROM StudentDetails WHERE id = ?`
 
-    ConnectDb.query(sql , [studentID] , (err, result)=>{
-        if(err){
-           return res.status(500).send({
-                success:false,
-                message:"Internal Server Error"
+    ConnectDb.query(sql, [studentID], (err, result) => {
+        if (err) {
+            return res.status(500).send({
+                success: false,
+                message: "Internal Server Error"
             })
-            
+
         }
-      return  res.send({
-            success:true,
-           data: result[0]
+        return res.send({
+            success: true,
+            data: result[0]
         })
     })
 }
@@ -361,24 +455,24 @@ const getProfile = (req , res)=>{
 
 // teacher with id 
 
-const teacherById = (req, res)=>{
+const teacherById = (req, res) => {
     try {
         const id = req.params.id;
         const sql = `SELECt* FROM StudentDetails WHERE id = ?`
 
-        ConnectDb.query(sql , [id], (err , result)=>{
-            if(err){
+        ConnectDb.query(sql, [id], (err, result) => {
+            if (err) {
                 res.status(501).send({
-                success:false,
-                message:"Internal Server Error"
-               });
+                    success: false,
+                    message: "Internal Server Error"
+                });
 
 
             }
             return res.send({
-             success:true,
-             data:result[0],
-             message:"Fetched"
+                success: true,
+                data: result[0],
+                message: "Fetched"
             })
         })
     } catch (error) {
@@ -389,53 +483,90 @@ const teacherById = (req, res)=>{
 
 // NOTICE POST ROUTE 
 
-const notice = (req,res)=>{
+const notice = (req, res) => {
     try {
-        const {noticeTitle , noticeDiscription} = req.body;
-        console.log(req.body);
-        const sql = `INSERT INTO notice (title , description)
-        VALUE (?,?)
+        // console.log("fghjk", req.body);
+
+        const { noticeTitle, noticeDiscription } = req.body;
+
+        console.log(req.file);
+        if (!req.file) {
+            return res.status(400).json({
+                success: false,
+                message: "No file uploaded",
+            });
+        }
+
+        const uploadStream = cloudinary.uploader.upload_stream(
+            {
+                folder: "public-notice",
+                resource_type: "auto",
+            },
+            (error, result) => {
+                console.log(result);
+                if (error) {
+                    console.log(error, "aaaa")
+                    return res.status(500).json({
+                        success: false,
+                        error,
+                    });
+                }
+
+                const sql = `INSERT INTO notice (title , description , document)
+        VALUES (?,?,?)
         `;
 
-        ConnectDb.query(sql , [
-            noticeTitle,
-            noticeDiscription
-        ],(err,result)=>{
-            if(err){
-             return   res.status(500).send({
-                    success:false,
-                    message:"Enternal Server Error"
-                })
+                ConnectDb.query(sql, [
+                    noticeTitle,
+                    noticeDiscription,
+                    result.secure_url
+                ], (err, result) => {
+                    if (err) {
+                        return res.status(500).send({
+                            success: false,
+                            message: "Enternal Server Error"
+                        })
+                    }
+
+                    return res.status(200).send({
+                        success: true,
+                        message: "Notice Add Done !",
+                        data: result
+                    })
+
+                });
             }
+        );
 
-            return res.status(200).send({
-                success:true,
-                message:"Notice Add Done !"
-            })
 
-        })
+
+        streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
+
+
+
     } catch (error) {
-        
+        console.log(error);
     }
 }
 
 // GET NOTICE ON STUDENT DASHBOARD
 
-const getNotice = (req,res)=>{
+const getNotice = (req, res) => {
     try {
-        const sql = `SELECT * FROM notice`
-        ConnectDb.query(sql , (error,result)=>{
-            if(error){
+
+        const sql = `SELECT * FROM notice ORDER BY id DESC`
+        ConnectDb.query(sql, (error, result) => {
+            if (error) {
                 return res.status(500).send({
-                    message:"Internal Server Error",
-                    success:false
+                    message: "Internal Server Error",
+                    success: false
                 })
             }
 
             return res.status(200).send({
-                success:false,
-                data:result,
-                message:"Data get Success"
+                success: true,
+                data: result,
+                message: "Data get Success"
             })
         })
     } catch (error) {
@@ -443,7 +574,90 @@ const getNotice = (req,res)=>{
     }
 }
 
+
+const UserAnalytics = (req, res) => {
+    try {
+        const sql = `SELECT 
+        COUNT(CASE WHEN role = 'Student' THEN 1 END) AS studentCount,
+        COUNT(CASE WHEN role = 'Teacher' THEN 1 END) AS teacherCount 
+        FROM StudentDetails
+                     `;
+
+        ConnectDb.query(sql, (err, result) => {
+            if (err) {
+                return res.status(501).json({
+                    success: false,
+                    message: "Internal Server Error"
+                });
+            }
+            return res.status(200).send({
+                success: true,
+                data: result[0],
+                message: "success"
+            })
+        })
+    } catch (error) {
+        console.log(error);
+    }
+}
+
+
+
+
+// ASSINGMENT CONTORLLER 
+
+const assingmentPost = (req, res) => {
+    try {
+        const { assDisc, assTitle } = req.body;
+        console.log(req.body);
+
+        const sql = `INSERT INTO homework
+        (homework_title , homework_description)
+        values(?,?)`
+
+        ConnectDb.query(sql, [
+            assDisc,
+            assTitle
+        ], (err, result) => {
+            if (err) {
+                return res.status(500).send({
+                    success: false,
+                    message: "Data not post"
+                })
+            }
+
+            return res.status(200).send({
+                success: true,
+                message: "data posted !"
+            })
+
+
+        })
+    } catch (error) {
+        console.log(error)
+    }
+}
+
+
+// file upload 
+
+const fileUpload = async (req, res) => {
+    try {
+
+    } catch (err) {
+        console.log(err, "ghjkil")
+        res.status(500).json({
+            success: false,
+            message: err.message,
+        });
+    }
+};
+
+
+
+
 // FUNCTION MUST BE DO EXPORTS
+
 
 exports.register = register;
 exports.getAllStudent = getAllStudent;
@@ -455,3 +669,6 @@ exports.getProfile = getProfile;
 exports.teacherById = teacherById;
 exports.notice = notice;
 exports.getNotice = getNotice;
+exports.UserAnalytics = UserAnalytics;
+exports.assingmentPost = assingmentPost;
+exports.fileUpload = fileUpload;

@@ -9,6 +9,15 @@ const upload = require('../middleware/multer.js');
 
 
 
+// const uploader = multer({
+//     storage:multer.diskStorage({}),
+//     limits:{fileSize:500000}
+// });
+
+// router.post('/upload-file' , uploader.single('file'), studentsController.)
+
+
+
 // STUDENT PROFILE DATA / DASHBOARD DATA 
 router.get('/student/profile' ,auth ,studentsController.getProfile)
 
@@ -17,9 +26,7 @@ router.get('/student/profile' ,auth ,studentsController.getProfile)
 
 console.log("register:", studentsController.register);
 
-router.post("/student-data",
-    upload.single("image"),
-    studentsController.register)
+router.post("/student-data", upload.single("image"), studentsController.register)
 
 
 
@@ -54,13 +61,28 @@ router.post('/login' , studentsController.UserLogin);
 router.get('/teacher/:id' , studentsController.teacherById);
 
 
-// POST API FOR NOTICE
-
-router.post('/notice-student' , studentsController.notice)
 
 // TO GET ALL NOTICE
 
 router.get('/student-notice' , studentsController.getNotice)
+
+// USER ANALYTICS
+
+
+router.get('/useranalytics'  , studentsController.UserAnalytics);
+
+// ASSINGEMNT POST ROUTE 
+
+router.post('/assigment' , studentsController.assingmentPost);
+
+
+// POST API FOR NOTICE
+
+router.post('/notice-student' ,upload.single('file'), studentsController.notice);
+
+// file posting
+
+// router.post('/upload' ,  , studentsController.fileUpload);
 
 
 module.exports = router;
