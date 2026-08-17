@@ -28,59 +28,7 @@ app.use(cors(
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-//DATA BASE CONNECTION
 
-// cloudinary.config({
-//     cloud_name:process.env.cloud_name,
-//     api_key:process.env.api_key,
-//     api_secret:process.env.api_secret
-// });
-
-
-// const storage = multer.memoryStorage();
-
-// const parser = multer({
-//   storage: storage,
-// });
-
-// // TEMPORARY FILE POSTING 
-
-// app.post("/upload", parser.single("file"), async (req, res) => {
-//   try {
-//     if (!req.file) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "No file uploaded",
-//       });
-//     }
-
-//     const uploadStream = cloudinary.uploader.upload_stream(
-//       {
-//         folder: "Notice-files",
-//       },
-//       (error, result) => {
-//         if (error) {
-//           return res.status(500).json({
-//             success: false,
-//             error,
-//           });
-//         }
-
-//         return res.status(200).json({
-//           success: true,
-//           data: result,
-//         });
-//       }
-//     );
-
-//     streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
-//   } catch (err) {
-//     res.status(500).json({
-//       success: false,
-//       message: err.message,
-//     });
-//   }
-// });
 
 
 

@@ -80,9 +80,13 @@ router.post('/assigment' , studentsController.assingmentPost);
 
 router.post('/notice-student' ,upload.single('file'), studentsController.notice);
 
+// FORGOT PASSWORD SYSYTEM
+
+router.post('/forgot-password' , studentsController.checkEmail);
+
 // file posting
 
-// router.post('/upload' ,  , studentsController.fileUpload);
+router.post('/upload' ,studentsController.fileUpload);
 
 
 module.exports = router;

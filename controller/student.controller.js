@@ -7,6 +7,8 @@ const jwt = require('jsonwebtoken');
 const { connect } = require('../routes/index.route.js');
 
 const streamifier = require("streamifier");
+const generateOTP = require('../utils/OtpGen.js');
+const transporter = require('../config/mailer.js');
 
 
 
@@ -655,7 +657,49 @@ const fileUpload = async (req, res) => {
 
 
 
+const checkEmail = (req , res)=>{
+    
+    const { email } = req.body;
+    const sql = `SELECT * from StudentDetails WHERE email = ?`
 
+    ConnectDb.query(sql ,[email],async (err , result)=>{
+        if(err){
+          return  console.log(err);
+
+        }
+        if(result.length == 0){
+          return  res.status(404).json({
+                success:false,
+                Message:"User Not found 404"
+            })
+        }
+
+        // otp generate 
+        try {
+            const otp = generateOTP();
+            console.log(otp , "Generated OTP");
+             
+            await transporter.sendMail({
+                from: process.env.app_name,
+                to:email,
+                subject: "Otp for reset password",
+                text: `Your OTP is ${otp}. It is valid for 10 minutes.`,
+            })
+
+            return res.status(200).json({
+                success:true,
+                message:"Otp send Successfully !"
+            })
+        } catch (error) {
+            console.log(error);
+            return res.status(500).json({
+                success:false,
+                message:"Otp not send from cath",
+                error: error.message
+            })
+        }
+    })
+}
 // FUNCTION MUST BE DO EXPORTS
 
 
@@ -672,3 +716,4 @@ exports.getNotice = getNotice;
 exports.UserAnalytics = UserAnalytics;
 exports.assingmentPost = assingmentPost;
 exports.fileUpload = fileUpload;
+exports.checkEmail = checkEmail;
