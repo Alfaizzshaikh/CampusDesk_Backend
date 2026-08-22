@@ -9,12 +9,6 @@ const upload = require('../middleware/multer.js');
 
 
 
-// const uploader = multer({
-//     storage:multer.diskStorage({}),
-//     limits:{fileSize:500000}
-// });
-
-// router.post('/upload-file' , uploader.single('file'), studentsController.)
 
 
 
@@ -45,6 +39,8 @@ router.get('/student/:id',studentsController.studentById);
 //EDIT STUDENT DATA API 
 
 router.patch('/editStudent/:id' , studentsController.editStudent);
+router.patch('/editTeacher/:id' , studentsController.editTeacher);
+
 
 
 // DELETE STUDENT DATA API
@@ -88,5 +84,8 @@ router.post('/forgot-password' , studentsController.checkEmail);
 
 router.post('/upload' ,studentsController.fileUpload);
 
+
+
+router.patch('/reset-password/:token' ,studentsController.resetPassword);
 
 module.exports = router;
